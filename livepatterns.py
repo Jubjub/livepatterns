@@ -3,7 +3,9 @@ import live
 import cairo
 import pyglet
 import random
+import inspect
 from vmath import *
+from PIL import Image
 from pyglet.gl import *
 from pyglet.window import *
 from pyglet.window import key
@@ -15,7 +17,6 @@ from pyglet import clock, image
 def idle(loop):
     clock.tick(poll=True)
     return clock.get_sleep_time(sleep_idle=True) / 2.0
-
  
 def set_topmost(window):
     from pyglet.window.win32 import _user32
@@ -29,11 +30,13 @@ def set_topmost(window):
 class Tool():
     def __init__(self):
         size = v2(600, 600)
+        self.mode = 'cairo'
         self.size = size
         self.time = 0.0
         self.error = False
         self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, *size)
         self.context = cairo.Context(self.surface)
+        self.pil = Image.new('RGBA', size.to_tuple())
         self.context.scale(*size)
         config = Config(buffer_size=32,
                         alpha_size=8,
@@ -48,7 +51,13 @@ class Tool():
         self.message = Label('', 'Courier', 11, x=0, y=size.y)
         self.message.anchor_y = 'top'
         pyglet.app.EventLoop.idle = idle
+        self.update_mode()
         self.init_opengl()
+
+    def update_mode(self):
+        self.mode = 'cairo'
+        if 'im' in inspect.getargspec(live.draw)[0]:
+            self.mode = 'pil'
 
     def init_opengl(self):
         glEnable(GL_BLEND)
@@ -72,13 +81,18 @@ class Tool():
         self.window.flip()
 
     def render(self, time, dt):
-        # clear surface
+        # clear surfaces
         self.context.set_operator(cairo.OPERATOR_SOURCE)
         self.context.set_source_rgba(0, 0, 0, 0)
         self.context.paint()
+        self.pil = Image.new('RGBA', self.size.to_tuple())
+        self.update_mode()
+        manipulator = self.context
+        if self.mode == 'pil':
+            manipulator = self.pil
         # get the new pattern frame from the live module
         try:
-            live.draw(self.context, time, dt)
+            live.draw(manipulator, time, dt)
         except Exception, error:
             self.error = True
             self.message.text = str(error)
@@ -86,9 +100,15 @@ class Tool():
             print '<- execution error'
         # draw the final image
         if not self.error:
-            data = StringIO()
-            self.surface.write_to_png(data)
-            pattern = image.load('pattern.png', file=data)
+            if self.mode == 'cairo':
+                data = StringIO()
+                self.surface.write_to_png(data)
+                pattern = image.load('pattern.png', file=data)
+            elif self.mode == 'pil':
+                raw = self.pil.tostring()
+                size = self.size
+                pattern = pyglet.image.ImageData(size.x, size.y, 'RGBA',
+                        raw, pitch=size.x * 4)
             pattern.blit(0, 0)
         self.message.draw()
 
