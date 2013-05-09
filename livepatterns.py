@@ -29,7 +29,8 @@ def set_topmost(window):
 
 class Tool():
     def __init__(self):
-        size = v2(600, 600)
+        #size = v2(600, 600)
+        size = v2(300, 300)
         self.mode = 'cairo'
         self.size = size
         self.time = 0.0
@@ -92,7 +93,7 @@ class Tool():
             manipulator = self.pil
         # get the new pattern frame from the live module
         try:
-            live.draw(manipulator, time, dt)
+            result = live.draw(manipulator, time, dt)
         except Exception, error:
             self.error = True
             self.message.text = str(error)
@@ -105,6 +106,8 @@ class Tool():
                 self.surface.write_to_png(data)
                 pattern = image.load('pattern.png', file=data)
             elif self.mode == 'pil':
+                if result:
+                    self.pil = result
                 raw = self.pil.tostring()
                 size = self.size
                 pattern = pyglet.image.ImageData(size.x, size.y, 'RGBA',
@@ -116,7 +119,6 @@ class Tool():
         clock.schedule(self.update)
         set_topmost(self.window)
         pyglet.app.run()
-
 
 def main(argv):
     print 'started'
